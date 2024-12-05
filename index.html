@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="stylesheet" href="styles.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DNS Form</title>
+</head>
+<body>
+    <!-- Form for storing DNS and IP address -->
+    <form id="storeDNSForm">
+        <h3>Store DNS and IP Address</h3>
+        <label for="dnsAddress">Enter DNS Address:</label>
+        <input type="text" id="dnsAddress" name="dnsAddress" required>
+        <br>
+        <label for="ipAddress">Enter IP Address:</label>
+        <input type="text" id="ipAddress" name="ipAddress" required>
+        <br>
+        <label for="nodeIdx">Enter Node Index To Send Request To (1-10):</label>
+        <input type="number" id="nodeIdx" name="nodeIdx" min="1" max="10" required>
+        <br>
+        <button type="submit">Store DNS</button>
+        <p id="storeResponseMessage"></p>
+    </form>
+
+    <h3>List of DNS Addresses</h3>
+    <div>
+        <ul id="dnsList"></ul>
+    </div>
+    
+    <!-- Form for retrieving IP address by DNS -->
+    <form id="retrieveIPForm">
+        <h3>Retrieve IP by DNS Address</h3>
+        <label for="retrieveDNS">Enter DNS Address:</label>
+        <input type="text" id="retrieveDNS" name="retrieveDNS" required>
+        <br>
+        <label for="nodeIdxRetrieve">Enter Node Index To Send Request To (1-10):</label>
+        <input type="number" id="nodeIdxRetrieve" name="nodeIdxRetrieve" min="1" max="10" required>
+        <br>
+        <button type="submit">Retrieve IP</button>
+    </form>
+    <p id="retrieveResponseMessage"></p>
+
+    <script>
+        // Array to hold the DNS addresses
+        const dnsAddresses = [];
+    
+        // Reference to the form and list
+        const dnsList = document.getElementById("dnsList");
+
+        // Handle storing DNS and IP address
+        document.getElementById("storeDNSForm").addEventListener("submit", async function (e) {
+            e.preventDefault();
+
+            const dnsAddress = document.getElementById("dnsAddress").value;
+            const ipAddress = document.getElementById("ipAddress").value;
+            const nodeIdx = parseInt(document.getElementById("nodeIdx").value, 10);
+            const storeResponseMessage = document.getElementById("storeResponseMessage");
+
+            const nodeEndpoint = 8080 + nodeIdx;
+
+            try {
+                const response = await fetch(`http://localhost:${nodeEndpoint}/store_data`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ data: ipAddress }),
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    localStorage.setItem(dnsAddress, result.key);
+                    storeResponseMessage.textContent = `Successfully stored data`;
+                    // clear the form
+                    document.getElementById("dnsAddress").value = "";
+                    document.getElementById("ipAddress").value = "";
+                    document.getElementById("nodeIdx").value = "";
+                    
+                    dnsAddresses.push(dnsAddress)
+                    renderDNSList();
+                } else {
+                    const error = await response.json();
+                    storeResponseMessage.textContent = `Error: ${error.error || "Failed to store DNS"}`;
+                }
+            } catch (err) {
+                storeResponseMessage.textContent = `Error: ${err.message}`;
+            }
+        });
+
+        // Function to render the DNS list
+        function renderDNSList() {
+            dnsList.innerHTML = ""; // Clear current list
+            dnsAddresses.forEach((dns, index) => {
+                const li = document.createElement("li");
+                li.textContent = dns;
+
+                // Add a delete button for each entry
+                const deleteButton = document.createElement("button");
+                deleteButton.textContent = "Delete";
+                deleteButton.style.marginLeft = "10px";
+                deleteButton.addEventListener("click", function () {
+                    removeDNS(index);
+                });
+
+                li.appendChild(deleteButton);
+                dnsList.appendChild(li);
+            });
+        }
+
+        // Function to remove a DNS entry
+        function removeDNS(index) {
+            dnsAddresses.splice(index, 1);
+            renderDNSList();
+        }
+
+        // Handle retrieving IP address by DNS
+        document.getElementById("retrieveIPForm").addEventListener("submit", async function (e) {
+            e.preventDefault();
+
+            const retrieveDNS = document.getElementById("retrieveDNS").value;
+            const retrieveResponseMessage = document.getElementById("retrieveResponseMessage");
+            const nodeIdxRetrieve = parseInt(document.getElementById("nodeIdxRetrieve").value, 10);
+
+            const nodeEndpoint = 8080 + nodeIdxRetrieve;
+
+            const storedKey = localStorage.getItem(retrieveDNS);
+
+            try {
+                // Retrieve the key based on the DNS address
+                const retrieveKeyResponse = await fetch(`http://localhost:${nodeEndpoint}/retrieve_data/${storedKey}`, {
+                    method: "GET",
+                });
+
+                if (retrieveKeyResponse.ok) {
+                    const result = await retrieveKeyResponse.json();
+                    retrieveResponseMessage.textContent = `IP Address: ${result.data}`;
+                } else {
+                    const error = await retrieveKeyResponse.json();
+                    retrieveResponseMessage.textContent = `Error: ${error.error || "No IP found for the DNS"}`;
+                }
+            } catch (err) {
+                retrieveResponseMessage.textContent = `Error: ${err.message}`;
+            }
+        });
+    </script>
+</body>
+</html>
